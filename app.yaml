@@ -1,0 +1,22 @@
+application: gae-salesforce
+version: 1
+runtime: python27
+api_version: 1
+threadsafe: yes
+ 
+handlers:
+- url: /favicon\.ico
+  static_files: favicon.ico
+  upload: favicon\.ico
+  
+- url: /images
+  static_dir: static/images
+  
+- url: /html
+  static_dir: static/html
+
+- url: /js
+  static_dir: static/js  
+  
+- url: /.*
+  script: wsgi.application
