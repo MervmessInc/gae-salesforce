@@ -12,15 +12,10 @@ from google.appengine.api import users
 #
 logging.basicConfig(level=logging.DEBUG)
 
-# A basic Google datastore object. After running the app 
-# open the SDK console -> Datastore Viewer. 
-#	
-class Visitor(ndb.Model):
-	name = ndb.StringProperty()
-	createdDT = ndb.DateTimeProperty(auto_now_add=True)
-	lastVisitDT = ndb.DateTimeProperty(auto_now=True)
-	email = ndb.StringProperty()
-
+sfdcAuth = ''
+headers = ''
+h = httplib2.Http()
+queryURI = ''
 	
 def application(environ, start_response):
 	return bt.default_app().wsgi(environ,start_response)
@@ -30,146 +25,154 @@ def enable_cors():
 	bt.response.headers['Access-Control-Allow-Origin'] = '*'
 
 
-# The site's home page. 
+# Salesforce OAuth Login. 
 #
 @bt.route("/") 
 def index():
-	try:
-		retVal = 'index : '
-
-		loginURL = auth.LOGIN_URI
+  try:
+    retVal = 'index : '
+    
+    loginURL = auth.LOGIN_URI
+    loginArgs = {'response_type' : 'code', 'client_id' : auth.CLIENT_ID, 'redirect_uri' : auth.REDIRECT_URI}
+    loginURL += 'services/oauth2/authorize?'+urllib.urlencode(loginArgs)
+    
+    retVal += loginURL
+    
+    return ('<html><body> <h1>%s</h1><a href="%s">login</a></body></html>' % (retVal, loginURL))
+  
+  except:
+    logging.warning(traceback.print_exc())
+    return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=/html/Error.html"></head></html>')
+    raise
 		
-		loginArgs = {'response_type' : 'code',
-					 'client_id' : auth.CLIENT_ID,
-					 'redirect_uri' : auth.REDIRECT_URI}
-		
-		loginURL += 'services/oauth2/authorize?'+urllib.urlencode(loginArgs)
-		
-		retVal += loginURL
-		
-		return ('<html><body> <h1>%s</h1><a href="%s">login</a></body></html>' 
-					% (retVal, loginURL))
-
-	except:
-		logging.warning(traceback.print_exc())
-		return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=/html/Error.html"></head></html>')
-		raise
-		
-# Salesforce OAuth
+# Salesforce Canvas URL
 #		
 @bt.route("/SalesforceOAuth")
 def SalesforceLogin():
-	try:
-		retVal = 'SalesforceOAuth : '
-		
-		args = bt.request.query_string
-		loginURL = bt.request.query['loginUrl']
-		body = bt.request.body.readline()
-		
-		loginArgs = {'response_type' : 'code',
-					 'client_id' : auth.CLIENT_ID,
-					 'redirect_uri' : auth.REDIRECT_URI}
-		
-		loginURL += 'services/oauth2/authorize?'+urllib.urlencode(loginArgs)
-		
-		retVal += loginURL
-		
-		return ('<html><body> <h1>%s</h1><a href="%s">login</a></body></html>' 
-					% (retVal, loginURL))
-
-	except:
-		logging.warning(traceback.print_exc())
-		return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=/html/Error.html"></head></html>')
-		raise
+  try:
+    retVal = 'SalesforceOAuth : '
+    
+    args = bt.request.query_string
+    loginURL = bt.request.query['loginUrl']
+    body = bt.request.body.readline()
+    
+    loginArgs = {'response_type' : 'code', 'client_id' : auth.CLIENT_ID, 'redirect_uri' : auth.REDIRECT_URI}
+    loginURL += 'services/oauth2/authorize?'+urllib.urlencode(loginArgs)
+    
+    retVal += loginURL
+    
+    return ('<html><body> <h1>%s</h1><a href="%s">login</a></body></html>' % (retVal, loginURL))
+  
+  except:
+    logging.warning(traceback.print_exc())
+    return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=/html/Error.html"></head></html>')
+    raise
 
 # Callback OAuth
 #		
 @bt.route("/Callback")
 def SalesforceLogin():
-	try:
-		retVal = 'Callback : <br>'
-		
-		args = bt.request.url
-		code = bt.request.query['code']
-		code = urllib.unquote(code)
-		loginArgs = {'grant_type' : 'authorization_code',
-					 'client_id' : auth.CLIENT_ID,
-					 'client_secret' :  auth.CLIENT_SECRET,
-					 'redirect_uri' : auth.REDIRECT_URI,
-					 'code' : code}
-		
-		loginURL = auth.LOGIN_URI+'services/oauth2/token'
-			
-		h = httplib2.Http()
-			
-		resp, content = h.request(loginURL, "POST", urllib.urlencode(loginArgs))
-		logging.warning(resp)
-		logging.warning(content)
-		
-		if resp['status'] == '200':
-			contentObj = json.loads(content)
-			logging.warning(contentObj)
+  try:
+    
+    args = bt.request.url
+    code = bt.request.query['code']
+    code = urllib.unquote(code)
+    loginArgs = {'grant_type' : 'authorization_code',
+                 'client_id' : auth.CLIENT_ID,
+                 'client_secret' :  auth.CLIENT_SECRET,
+                 'redirect_uri' : auth.REDIRECT_URI,
+                 'code' : code}
+    
+    loginURL = auth.LOGIN_URI+'services/oauth2/token'
+    
+    resp, content = h.request(loginURL, "POST", urllib.urlencode(loginArgs))
+    logging.warning(resp)
+    logging.warning(content)
+    
+    if resp['status'] == '200':
+      contentObj = json.loads(content)
+      logging.warning(contentObj)
+      
+      auth.ACCESS_TOKEN = contentObj['access_token']
+      auth.INSTANCE_URL = contentObj['instance_url']
+      auth.ISSUED_AT = contentObj['issued_at']
+      
+      # Build the HTTP header
+      #
+      global sfdcAuth
+      sfdcAuth = "OAuth " + auth.ACCESS_TOKEN
+      global headers
+      headers = {'Authorization': sfdcAuth,
+                 'X-PrettyPrint': '1',
+                 'Content-Type': 'application/json'}
+      apiURI = auth.INSTANCE_URL+'/services/data/'
+      
+      # A raw request to the URI gets a list of the API version available.
+      #
+      resp, content = h.request(apiURI, method="GET", headers=headers)
+      logging.warning(resp)
+      logging.warning(content)
+      
+      # The response is 'application/json' we need to change it into a Python Object
+      #
+      pyObj = json.loads(content)
 
-			auth.ACCESS_TOKEN = contentObj['access_token']
-			auth.INSTANCE_URL = contentObj['instance_url']
-			auth.ISSUED_AT = contentObj['issued_at']
+      # Assume the last entry is the most resent version and get the URI path.
+      #
+      URI = auth.INSTANCE_URL + pyObj[-1]['url']
+    
+      # Hit the version URI for a list of the resources avilable. We want to 'query'
+      #
+      resp, content = h.request(URI, method="GET", headers=headers)
+      logging.warning(resp)
+      logging.warning(content)
+    
+      pyObj = json.loads(content)
+      global queryURI
+      queryURI = auth.INSTANCE_URL + pyObj['query']
 
-			retVal += 'ID           : ' + contentObj['id'] + '<br>'
-						
-		return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=/sfdcQuery"></head></html>')
-
-	except:
-		logging.warning(traceback.print_exc())
-		return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=/html/Error.html"></head></html>')
-		raise
+      
+    return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=/sfdcQuery"></head></html>')
+  
+  except:
+    logging.warning(traceback.print_exc())
+    return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=/html/Error.html"></head></html>')
+    raise
 
 		
 # Do some SFDC stuff
 #
 @bt.route("/sfdcQuery")
 def sfdcQuery():
-	try:
-		retVal = '<!DOCTYPE html><html><body><h1>OAuth : </h1>'
-		retVal += '<b>Instance URL : </b>' + auth.INSTANCE_URL + '<br><br>'
+  try:
+    retVal = '<!DOCTYPE html><html><body>'
+    retVal += '<b>Instance URL : </b>' + auth.INSTANCE_URL + '<br><br>'
+    
+    # Construct the query to append to the queryURI
+    #
+    if 'queryStr' in bt.request.query:
+      queryStr = bt.request.query['queryStr']
+    else:
+      queryStr = "SELECT Id, Name FROM Account LIMIT 5"
+    query = urllib.urlencode({'q':queryStr})
+    URI = queryURI+"?"+query
+    resp, content = h.request(URI, method="GET", headers=headers)
+    logging.warning(resp)
+    logging.warning(content)
+    
+    retVal += '<form name="sfdcQuery" action="sfdcQuery" method="get"><table>'
+    retVal += '<tr><td><textarea rows="3" cols="80" name="queryStr">' + queryStr + '</textarea></td></tr>'
+    retVal += '<tr><td><input type="submit" value="Submit"></td></tr>'
+    retVal += '<tr><td><textarea rows="30" cols="80">' +content+ '</textarea></td></tr>'
+    retVal += '</table></form>'
+    retVal += '</body></html>'
+    
+    return(retVal)
+  
+  except:
+    logging.warning(traceback.print_exc())
+    return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=/html/Error.html"></head></html>')
+    raise
 
-		h = httplib2.Http()
-		# Build the HTTP header
-		#
-		sfdcAuth = "OAuth " + auth.ACCESS_TOKEN
-		headers = {'Authorization': sfdcAuth, 
-				   'X-PrettyPrint': '1',
-				   'Content-Type': 'application/json'}
-				   
-		apiURI = auth.INSTANCE_URL+'/services/data/'
-		
-		resp, content = h.request(apiURI, method="GET", headers=headers)
-		logging.warning(resp)
-		logging.warning(content)
-		
-		pyObj = json.loads(content)
-		URI = auth.INSTANCE_URL + pyObj[-1]['url']
-		resp, content = h.request(URI, method="GET", headers=headers)
-		logging.warning(resp)
-		logging.warning(content)
-
-		pyObj = json.loads(content)
-		URI = auth.INSTANCE_URL + pyObj['query']
-		query = urllib.urlencode({"q":"SELECT Id, Name, SFDC_Account_ID__c FROM Account LIMIT 5"})
-		URI += "?"+query
-		resp, content = h.request(URI, method="GET", headers=headers)
-		logging.warning(resp)
-		logging.warning(content)
-		
-		retVal += '<b>' + URI + '</b><br>'
-		retVal += '<textarea rows="30" cols="80">' +content+ '</textarea>'
-		
-		retVal += '</body></html>'
-		return(retVal)
-	except:
-		logging.warning(traceback.print_exc())
-		return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=/html/Error.html"></head></html>')
-		raise
-
-		
 if __name__ == "__main__":
-	bt.run(server="gae", debug=True)
+  bt.run(server="gae", debug=True)
