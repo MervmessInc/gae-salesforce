@@ -8,9 +8,15 @@ import oauth_config as auth
 from google.appengine.ext import ndb
 from google.appengine.api import users
 
+## Setup & Config
+##
+import config
+bt.TEMPLATE_PATH.append('./static/')
+
 # Set the log level high so that all is logged/
 #
-logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger('wsgi')
+logger.setLevel(logging.DEBUG)
 
 sfdcAuth = ''
 headers = ''
@@ -18,11 +24,11 @@ h = httplib2.Http()
 queryURI = ''
 	
 def application(environ, start_response):
-	return bt.default_app().wsgi(environ,start_response)
+  return bt.default_app().wsgi(environ,start_response)
 	
 @bt.hook('after_request')
 def enable_cors():
-	bt.response.headers['Access-Control-Allow-Origin'] = '*'
+  bt.response.headers['Access-Control-Allow-Origin'] = '*'
 
 
 # Salesforce OAuth Login. 
@@ -41,9 +47,20 @@ def index():
     return ('<html><body> <h1>%s</h1><a href="%s">login</a></body></html>' % (retVal, loginURL))
   
   except:
-    logging.warning(traceback.print_exc())
+    logger.warning(traceback.print_exc())
     return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=/html/Error.html"></head></html>')
     raise
+
+# Salesforce Auto
+#
+@bt.route("/sfdcLogin")
+def sfdcLogin():
+  try:
+    return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=html/SalesForce_Login_II.html"></head></html>')
+  except:
+    logger.warning(traceback.print_exc())
+    return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=/html/Error.html"></head></html>')
+    raise		
 		
 # Salesforce Canvas URL
 #		
@@ -64,7 +81,7 @@ def SalesforceLogin():
     return ('<html><body> <h1>%s</h1><a href="%s">login</a></body></html>' % (retVal, loginURL))
   
   except:
-    logging.warning(traceback.print_exc())
+    logger.warning(traceback.print_exc())
     return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=/html/Error.html"></head></html>')
     raise
 
@@ -86,12 +103,12 @@ def SalesforceLogin():
     loginURL = auth.LOGIN_URI+'services/oauth2/token'
     
     resp, content = h.request(loginURL, "POST", urllib.urlencode(loginArgs))
-    logging.warning(resp)
-    logging.warning(content)
+    logger.warning(resp)
+    logger.warning(content)
     
     if resp['status'] == '200':
       contentObj = json.loads(content)
-      logging.warning(contentObj)
+      logger.warning(contentObj)
       
       auth.ACCESS_TOKEN = contentObj['access_token']
       auth.INSTANCE_URL = contentObj['instance_url']
@@ -103,15 +120,15 @@ def SalesforceLogin():
       sfdcAuth = "OAuth " + auth.ACCESS_TOKEN
       global headers
       headers = {'Authorization': sfdcAuth,
-                 'X-PrettyPrint': '1',
+					  'X-PrettyPrint': '1',
                  'Content-Type': 'application/json'}
       apiURI = auth.INSTANCE_URL+'/services/data/'
       
       # A raw request to the URI gets a list of the API version available.
       #
       resp, content = h.request(apiURI, method="GET", headers=headers)
-      logging.warning(resp)
-      logging.warning(content)
+      logger.warning(resp)
+      logger.warning(content)
       
       # The response is 'application/json' we need to change it into a Python Object
       #
@@ -124,8 +141,8 @@ def SalesforceLogin():
       # Hit the version URI for a list of the resources avilable. We want to 'query'
       #
       resp, content = h.request(URI, method="GET", headers=headers)
-      logging.warning(resp)
-      logging.warning(content)
+      logger.warning(resp)
+      logger.warning(content)
     
       pyObj = json.loads(content)
       global queryURI
@@ -135,7 +152,7 @@ def SalesforceLogin():
     return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=/sfdcQuery"></head></html>')
   
   except:
-    logging.warning(traceback.print_exc())
+    logger.warning(traceback.print_exc())
     return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=/html/Error.html"></head></html>')
     raise
 
@@ -157,8 +174,8 @@ def sfdcQuery():
     query = urllib.urlencode({'q':queryStr})
     URI = queryURI+"?"+query
     resp, content = h.request(URI, method="GET", headers=headers)
-    logging.warning(resp)
-    logging.warning(content)
+    logger.warning(resp)
+    logger.warning(content)
     
     retVal += '<form name="sfdcQuery" action="sfdcQuery" method="get"><table>'
     retVal += '<tr><td><textarea rows="3" cols="80" name="queryStr">' + queryStr + '</textarea></td></tr>'
@@ -170,7 +187,7 @@ def sfdcQuery():
     return(retVal)
   
   except:
-    logging.warning(traceback.print_exc())
+    logger.warning(traceback.print_exc())
     return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=/html/Error.html"></head></html>')
     raise
 

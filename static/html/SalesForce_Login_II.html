@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title></title>
+<!-- Make IE8 behave like IE7
+<meta http-equiv="X-UA-Comaptible"content="IE=EmulateIE7"/>
+-->
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+</head>
+<body>
+
+<link type="text/css" href="http://code.jquery.com/ui/1.10.4/themes/cupertino/jquery-ui.css" rel="Stylesheet" />
+<script type="text/javascript" src="http://code.jquery.com/jquery-1.10.2.js"></script>
+<script type="text/javascript" src="http://code.jquery.com/ui/1.10.4/jquery-ui.js"></script>
+
+<style>
+	html, body { height: 100%;}
+	a:link {color: #000000; text-decoration: none}
+	a:active {color: #000000; text-decoration: none}
+	a:visited {color: #FF0000; text-decoration: none}
+	a:hover {color: #0000FF; text-decoration: none}
+	table {border-collapse: collapse; width: 100%}
+	table,th,td {border: 0px solid black;}
+	td {text-align: left; padding:5px 0px 5px 10px}
+</style>
+
+<script type="application/javascript">
+
+	var $jQ = jQuery.noConflict();
+
+	function getBaseUrl(orgType){
+		if (orgType == "SANDBOX")
+			return "https://test.salesforce.com/";
+		else if (orgType == "PRE")
+			return "https://prerellogin.pre.salesforce.com/";
+		else if (orgType == "PROD")
+			return "https://login.salesforce.com/";
+	};
+
+	function account(name, orgType, baseUrl, uname, pword){
+		this.name=name;
+		this.orgType=orgType;
+		this.baseUrl=baseUrl;
+		this.username=uname;
+		this.password=pword;
+	};
+
+	function buildLoginUrl(acc) {
+		var un = acc.username;
+		var pw = acc.password;
+		var rooturl = acc.baseUrl;
+		var encUsername = encodeURIComponent(un);
+		var encPassword = encodeURIComponent(pw);
+		return rooturl + "?un=" + encUsername + "&pw=" + encPassword
+	};
+
+	var accArray = new Array();
+	accArray=[];
+	
+	for (i=0;i<localStorage.length;i++) {
+    //console.log(localStorage.key(i).slice(0,5));	
+		//console.log(localStorage.getItem(localStorage.key(i)));
+		//localStorage.removeItem(i);
+		try {
+		  if(localStorage.key(i).slice(0,5)=='SFDC~') {
+		    accnt = $jQ.parseJSON(localStorage.getItem(localStorage.key(i)));
+		    accArray.push(accnt);
+		  }
+		} catch (err) {
+		  // Some kind of error.
+		}
+	}
+
+	accArray.sort(function(a,b){
+		var textA = a.name.toUpperCase();
+		var textB = b.name.toUpperCase();
+		return (textA < textB) ? -1 : (textA > textB) ? 1 : 0;
+	});
+	
+	jQuery(document).ready(function() {
+		$jQ("#dialog").dialog({
+			autoOpen:false,
+			modal:false,
+			height:"auto",
+			width:550,
+			position: { my: "left top", at: "left top", of: window }
+		});
+
+		$jQ("#edit").dialog({
+			autoOpen:false,
+			modal:true,
+			height:"auto",
+			width:570,
+			position: { my: "center center"}
+		});
+
+		$jQ("#new").dialog({
+			autoOpen:false,
+			modal:true,
+			height:"auto",
+			width:570,
+			position: { my: "center center"}
+		});
+
+		$jQ("#export").dialog({
+			autoOpen:false,
+			modal:true,
+			height:"auto",
+			width:570,
+			position: { my: "center center"}
+		});
+
+		
+		sofar='<table>';
+		x=50
+		
+    console.log(accArray.length);
+
+		for (i=0;i<accArray.length;i++){
+			console.log(accArray[i].name);
+			urlStr = '<a href="'+buildLoginUrl(accArray[i])+'">'+accArray[i].name+'</a>';
+			editStr ='<a class="edit-action" id='+i+'>Edit</a>';
+			sofar += '<tr><td>'+urlStr+'</td><td>'+editStr+'</td></tr>';
+		}
+
+		sofar += '</table><table><tr><td width=15%><button id=newButton>New</button></td><td><button id=exportButton>Import/Export</button></td></tr></table>';
+		
+		$jQ("#dialog").html(sofar);
+		$jQ("#dialog").dialog('open');
+
+		// Edit click event
+		$jQ('.edit-action').click(function(){
+			//console.log(this.id);
+			//console.log(accArray[this.id].uname);
+			$jQ("#edName").val(accArray[this.id].name);
+			$jQ("#edOrgType2").val(accArray[this.id].orgType);
+			$jQ("#edUrl").val(accArray[this.id].baseUrl);
+			$jQ("#edUname").val(accArray[this.id].username);
+			$jQ("#edPword").val(accArray[this.id].password);
+			$jQ("#edit").dialog('open');
+		});
+
+		$jQ("#edOrgType2").change(function(){
+			$jQ("#edUrl").val(getBaseUrl($jQ("#edOrgType2").val()));
+		});
+
+		// Edit Delete Button
+		$jQ("#edDel").click(function(){
+			//Are you sure Y/N?
+			localStorage.removeItem('SFDC~'+$jQ("#edName").val());			
+			$jQ("#edit").dialog('close');
+			location.reload();
+		});
+
+		// Edit Save Button
+		$jQ("#edSave").click(function(){
+			newName = $jQ("#edName").val();
+			newOrgType = $jQ("#edOrgType2").val(); 
+			newBaseUrl = $jQ("#edUrl").val(); 
+			newUname = $jQ("#edUname").val();
+			newPword = $jQ("#edPword").val();
+			newAcc = new account(newName,newOrgType,newBaseUrl,newUname,newPword);
+			localStorage.setItem('SFDC~'+newAcc.name, JSON.stringify(newAcc));
+			$jQ("#edit").dialog('close');
+			location.reload();
+		});
+
+		
+		// New Button
+		$jQ("#newButton").click(function(){
+			$jQ("#new").dialog('open');
+		});
+		
+		$jQ("#nwOrgType2").change(function(){
+			$jQ("#nwUrl").val(getBaseUrl($jQ("#nwOrgType2").val()));
+		});
+		
+		// New Save Button
+		$jQ("#newSave").click(function(){
+			newName = $jQ("#nwName").val();
+			newOrgType = $jQ("#nwOrgType2").val(); 
+			newBaseUrl = $jQ("#nwUrl").val(); 
+			newUname = $jQ("#nwUname").val();
+			newPword = $jQ("#nwPword").val();
+			newAcc = new account(newName,newOrgType,newBaseUrl,newUname,newPword);
+			localStorage.setItem('SFDC~'+newAcc.name, JSON.stringify(newAcc));
+			$jQ("#new").dialog('close');
+			location.reload();
+		});
+		
+		//Import Button.
+		$jQ("#importButton").click(function(){
+			accArray = JSON.parse($jQ("#ioTextArea").val());
+			console.log(accArray.length);
+			localStorage.clear();
+			for (i=0;i<accArray.length;i++){
+				console.log(accArray[i].name);
+				localStorage.setItem('SFDC~'+accArray[i].name, JSON.stringify(accArray[i]));
+			}
+			$jQ("#export").dialog('close');
+			location.reload();
+		});
+		
+		//Export Button.
+		$jQ("#exportButton").click(function(){
+			$jQ("#ioTextArea").val(JSON.stringify(accArray));
+			$jQ("#export").dialog('open');
+		});
+
+	});
+	
+	//alert(localStorage.getItem(accArray[1].name));
+</script>
+
+	<DIV id=dialog title="Sales Force Auto Login"></DIV>
+
+	<DIV id=edit title="Edit">
+		<table>
+			<tr><td>Name :</td><td><input type="text" id=edName size=50></td></tr>
+			<tr><td>Org Type :</td><td>
+				<select id=edOrgType2>
+					<option value="PROD">Prod</option>
+					<option value="SANDBOX">Sandbox</option>
+					<!--<option value="PRE">Pre</option>-->
+				</select>
+			</td></tr>
+			<tr><td>URL :</td><td><input type="text" id=edUrl size=50></td></tr>
+			<tr><td>Username :</td><td><input type="text" id=edUname size=50></td></tr>
+			<tr><td>Password :</td><td><input type="password" id=edPword size=50></td></tr>
+		</table><table>
+			<tr><td><button id=edSave>Save</button></td><td><button id=edDel>Delete</button></td></tr>
+		</table>
+	</DIV>
+
+	<DIV id=new title="New">
+		<table>
+			<tr><td>Name :</td><td><input type="text" id=nwName size=50></td></tr>
+			<tr><td>Org Type :</td><td>
+				<select id=nwOrgType2>
+					<option value="-" selected>&nbsp;</option>
+					<option value="PROD">Prod</option>
+					<option value="SANDBOX">Sandbox</option>
+					<!--<option value="PRE">Pre</option>-->
+				</select>
+			</td></tr>
+			<tr><td>URL :</td><td><input type="text" id=nwUrl size=50></td></tr>
+			<tr><td>Username :</td><td><input type="text" id=nwUname size=50></td></tr>
+			<tr><td>Password :</td><td><input type="password" id=nwPword size=50></td></tr>
+		</table><table>
+			<tr><td><button id=newSave>Save</button></td></tr>
+		</table>
+	</DIV>
+
+	<DIV id=export title="Import Export">
+		<table>
+			<tr><td><textarea rows="8" cols="60" id=ioTextArea>Hello ....</textarea></td></tr>
+		</table><table>
+			<tr><td><button id=importButton>Import</button></td></tr>
+		</table>
+	</DIV>
+	
+</body>
+</html>
