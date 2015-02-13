@@ -58,9 +58,6 @@
 	accArray=[];
 	
 	for (i=0;i<localStorage.length;i++) {
-    //console.log(localStorage.key(i).slice(0,5));	
-		//console.log(localStorage.getItem(localStorage.key(i)));
-		//localStorage.removeItem(i);
 		try {
 		  if(localStorage.key(i).slice(0,5)=='SFDC~') {
 		    accnt = $jQ.parseJSON(localStorage.getItem(localStorage.key(i)));
@@ -130,8 +127,6 @@
 
 		// Edit click event
 		$jQ('.edit-action').click(function(){
-			//console.log(this.id);
-			//console.log(accArray[this.id].uname);
 			$jQ("#edName").val(accArray[this.id].name);
 			$jQ("#edOrgType2").val(accArray[this.id].orgType);
 			$jQ("#edUrl").val(accArray[this.id].baseUrl);
@@ -209,7 +204,7 @@
 
 	});
 	
-	//alert(localStorage.getItem(accArray[1].name));
+	console.log(localStorage.getItem(accArray[1].name));
 </script>
 
 	<DIV id=dialog title="Sales Force Auto Login"></DIV>
