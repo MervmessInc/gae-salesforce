@@ -53,7 +53,7 @@ def index():
 
 # Salesforce Auto
 #
-@bt.route("/sfdcLogin")
+@bt.route("/autoLogin")
 def sfdcLogin():
   try:
     return('<html><head><meta HTTP-EQUIV="REFRESH" content="0; url=html/SalesForce_Login_II.html"></head></html>')
